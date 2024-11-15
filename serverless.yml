@@ -1,0 +1,9 @@
+service: tmp-bref-deploy2
+
+provider:
+    name: aws
+
+functions:
+    hello:
+        handler: index.handler
+        url: true

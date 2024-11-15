@@ -1,0 +1,75 @@
+# AWS CloudFormation template for the AWS Lambda function
+AWSTemplateFormatVersion: '2010-09-09'
+
+Resources:
+    # S3 bucket to store the Lambda function code
+    S3Bucket:
+        Type: 'AWS::S3::Bucket'
+        Properties:
+            BucketName: !Sub '${AWS::StackName}-bucket'
+
+    LambdaFunction:
+        Type: 'AWS::Lambda::Function'
+        Properties:
+            FunctionName: !Sub '${AWS::StackName}'
+            Handler: index.handler
+            Role: !GetAtt LambdaExecutionRole.Arn
+            Code:
+                S3Bucket: !Ref S3Bucket
+                S3Key: 'code.zip'
+            Runtime: nodejs16.x
+            Timeout: 200
+
+    LambdaAliasMain:
+        Type: AWS::Lambda::Alias
+        Properties:
+            Name: main
+            FunctionName: !Ref LambdaFunction
+            FunctionVersion: $LATEST
+
+    LambdaUrl:
+        Type: AWS::Lambda::Url
+        Properties:
+            TargetFunctionArn: !GetAtt LambdaFunction.Arn
+            Qualifier: main
+            AuthType: NONE
+
+    LambdaExecutionRole:
+        Type: 'AWS::IAM::Role'
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    -   Effect: Allow
+                        Principal:
+                            Service: lambda.amazonaws.com
+                        Action: 'sts:AssumeRole'
+            Policies:
+                -   PolicyName: !Sub '${AWS::StackName}-policy'
+                    PolicyDocument:
+                        Version: '2012-10-17'
+                        Statement:
+                            -   Effect: Allow
+                                Action:
+                                    - 'logs:CreateLogGroup'
+                                    - 'logs:CreateLogStream'
+                                    - 'logs:PutLogEvents'
+                                    - 'logs:TagResource'
+                                Resource: 'arn:aws:logs:*:*:*'
+#                            -   Effect: Allow
+#                                Action:
+#                                    - 's3:GetObject'
+#                                    - 's3:PutObject'
+#                                Resource: !Sub 'arn:aws:s3:::${S3Bucket}/*'
+
+    LambdaUrlPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            FunctionName: !Ref LambdaAliasMain
+            Action: lambda:InvokeFunctionUrl
+            Principal: '*'
+            FunctionUrlAuthType: NONE
+
+Outputs:
+    LambdaUrl:
+        Value: !GetAtt LambdaUrl.FunctionUrl
